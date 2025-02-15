@@ -3,100 +3,159 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Plant Disease Detection</title>
-    <link rel="stylesheet" href="styles.css">
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+    <title>ASTRA</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" href="./Images/rename_header.png" type="image/x-icon" />
 </head>
 <body>
-    <!-- Main Page -->
-    <div id="main-page" class="container">
-        <!-- Header -->
-        <header>
-            <h1>Plant Disease Detection</h1>
-            <p>Point your camera at the plant to detect diseases in real time.</p>
-        </header>
-
-        <!-- Webcam Feed -->
-        <div class="webcam-container">
-            <div id="webcam-container"></div>
-        </div>
-
-        <button class="button_start" onclick="init()">Start</button>
-
-        <!-- Results Section -->
-        <div class="results">
-            <div id="label-container"></div>
-            <!-- <div class="result-box">
-                <h3>Diseased</h3>
-                <p id="diseased-rate">0%</p>
-            </div>
-            <div class="result-box">
-                <h3>Healthy</h3>
-                <p id="healthy-rate">0%</p>
-            </div> -->
-        </div>
+    <div id="wrapper" class="wrapper">
+        <!-- Report Wrapper -->
+         <div id="report_title"></div>
+        <div id="report_wrapper"></div>
 
         
+        <!-- Main Page Wrapper -->
+        <div id="main-page" class="container">
+            <h1>Plant Disease Detection</h1>
+            <p>Point your camera at the plant to detect diseases in real time.</p>
+            <!-- Webcam Feed -->
+            <div class="webcam-container">
+                <div id="webcam-container"></div>
+            </div>
+    
+            <button class="button_start" onclick="init()">Start</button>
+            <button class="button_capture" onclick="captureImage()" style="display:none;">Capture Image</button>
+    
+            <!-- Results Section -->
+            <div class="results">
+                <div id="label-container"></div>
+            </div>
+        </div>
+    </div>
 
-        <!-- Report Button -->
-        <a href="report.html" class="report-btn">View Report</a>
+    <!-- Report Page -->
+    <div id="report-page" class="container" style="display:none;">
+        <div id="report-content">
+            <img id="report-image" src="" alt="Captured Image">
+            <div id="report-details"></div>
+        </div>
+        <button onclick="downloadReport()">Download Report as PDF</button>
     </div>
 
     <script src="script.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
-<script type="text/javascript">
-    // More API functions here:
-    // https://github.com/googlecreativelab/teachablemachine-community/tree/master/libraries/image
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script type="text/javascript">
+        const { jsPDF } = window.jspdf;
 
-    // the link to your model provided by Teachable Machine export panel
-    const URL = "./my_model/";
+        const URL = "./my_model/";
+        let model, webcam, labelContainer, maxPredictions;
 
-    let model, webcam, labelContainer, maxPredictions;
+        async function init() {
+            const mainPage = document.getElementById("main-page");
+            const button = document.querySelector(".button_start");
 
-    // Load the image model and setup the webcam
-    async function init() {
-        const modelURL = URL + "model.json";
-        const metadataURL = URL + "metadata.json";
+            if (button) {
+                button.remove();
+            }
 
-        // load the model and metadata
-        // Refer to tmImage.loadFromFiles() in the API to support files from a file picker
-        // or files from your local hard drive
-        // Note: the pose library adds "tmImage" object to your window (window.tmImage)
-        model = await tmImage.load(modelURL, metadataURL);
-        maxPredictions = model.getTotalClasses();
+            const captureButton = document.querySelector(".button_capture");
+            captureButton.style.display = "block";
 
-        // Convenience function to setup a webcam
-        const flip = true; // whether to flip the webcam
-        webcam = new tmImage.Webcam(200, 200, flip); // width, height, flip
-        await webcam.setup(); // request access to the webcam
-        await webcam.play();
-        window.requestAnimationFrame(loop);
+            const modelURL = URL + "model.json";
+            const metadataURL = URL + "metadata.json";
 
-        // append elements to the DOM
-        document.getElementById("webcam-container").appendChild(webcam.canvas);
-        labelContainer = document.getElementById("label-container");
-        for (let i = 0; i < maxPredictions; i++) { // and class labels
-            labelContainer.appendChild(document.createElement("div"));
+            model = await tmImage.load(modelURL, metadataURL);
+            maxPredictions = model.getTotalClasses();
+
+            const flip = true;
+            webcam = new tmImage.Webcam(500, 300, flip);
+            await webcam.setup();
+            await webcam.play();
+            window.requestAnimationFrame(loop);
+
+            document.getElementById("webcam-container").appendChild(webcam.canvas);
+            labelContainer = document.getElementById("label-container");
+            for (let i = 0; i < maxPredictions; i++) {
+                labelContainer.appendChild(document.createElement("div"));
+            }
         }
-    }
 
-    async function loop() {
-        webcam.update(); // update the webcam frame
-        await predict();
-        window.requestAnimationFrame(loop);
-    }
-
-    // run the webcam image through the image model
-    async function predict() {
-        // predict can take in an image, video or canvas html element
-        const prediction = await model.predict(webcam.canvas);
-        for (let i = 0; i < maxPredictions; i++) {
-            const classPrediction =
-                prediction[i].className + ": " + prediction[i].probability.toFixed(2);
-            labelContainer.childNodes[i].innerHTML = classPrediction;
+        async function loop() {
+            webcam.update();
+            await predict();
+            window.requestAnimationFrame(loop);
         }
-    }
-</script>
+
+        async function predict() {
+            const prediction = await model.predict(webcam.canvas);
+            for (let i = 0; i < maxPredictions; i++) {
+                const classPrediction =
+                    prediction[i].className + ": " + prediction[i].probability.toFixed(2) * 100 + "%";
+                console.log(classPrediction);
+                labelContainer.childNodes[i].innerHTML = classPrediction;
+            }
+        }
+
+        function captureImage() {
+            const canvas = document.createElement('canvas');
+            canvas.width = webcam.canvas.width;
+            canvas.height = webcam.canvas.height;
+            const context = canvas.getContext('2d');
+            context.drawImage(webcam.canvas, 0, 0, canvas.width, canvas.height);
+            const imageData = canvas.toDataURL('image/png');
+
+            // Send imageData to AI model for analysis
+            analyzeImage(imageData);
+        }
+
+        function analyzeImage(imageData) {
+               
+            // Here you would send the imageData to your AI model and get the response
+            // For now, we'll simulate a response
+            const response = {
+                plantName: "Rose",
+                disease: "Early Blight",
+                solution: "Apply fungicide and remove affected leaves.",
+                commonDiseases: ["Late Blight", "Septoria Leaf Spot"]
+            };
+
+            displayReport(imageData, response);
+        }
+
+        function displayReport(imageData, response) {
+            const mainPage = document.getElementById("main-page");
+            const reportPage = document.getElementById("report-page");
+
+            mainPage.style.display = "none";
+            reportPage.style.display = "block";
+
+            const reportImage = document.getElementById("report-image");
+            const reportDetails = document.getElementById("report_wrapper");
+            const reportHeader = document.getElementById("report_title");
+            reportHeader.innerHTML = "<h1>Plant Disease Report</h1>"
+            reportImage.src = imageData;
+            reportDetails.innerHTML = `
+                <h2>Plant: ${response.plantName}</h2>
+                <p>Disease: ${response.disease}</p>
+                <p>Solution: ${response.solution}</p>
+                <p>Common Diseases: ${response.commonDiseases.join(", ")}</p>
+            `;
+        }
+
+        function downloadReport() {
+            const doc = new jsPDF();
+            const reportContent = document.getElementById("report-content");
+
+            doc.html(reportContent, {
+                callback: function (doc) {
+                    doc.save("plant_report.pdf");
+                },
+                x: 10,
+                y: 10
+            });
+        }
+    </script>
 </body>
 </html>
